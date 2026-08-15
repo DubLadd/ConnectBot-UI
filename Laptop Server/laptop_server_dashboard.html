@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laptop Host - SSH Server Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        .terminal-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+        .terminal-scroll::-webkit-scrollbar-track {
+            background: #010409;
+        }
+        .terminal-scroll::-webkit-scrollbar-thumb {
+            background: #30363d;
+            border-radius: 4px;
+        }
+        .pulse-green {
+            animation: pulse-green 2s infinite;
+        }
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(46, 160, 67, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(46, 160, 67, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(46, 160, 67, 0); }
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8 min-h-screen">
+
+    <div class="max-w-6xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-800 pb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-white flex items-center gap-3">
+                    <i data-lucide="server" class="text-blue-500"></i>
+                    Local SSH Host Dashboard
+                </h1>
+                <p class="text-sm text-gray-400 mt-1">Run this on your laptop to accept connections from ConnectBot.</p>
+            </div>
+            <button id="toggle-server-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium transition-colors flex items-center gap-2">
+                <i data-lucide="power" class="w-4 h-4"></i>
+                Start Server
+            </button>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Left Column: Settings & Clients -->
+            <div class="space-y-6 lg:col-span-1">
+                
+                <!-- Server Status Card -->
+                <div class="bg-[#161b22] border border-gray-800 rounded-xl p-5 shadow-lg">
+                    <h2 class="text-lg font-semibold text-white mb-4 border-b border-gray-800 pb-2">Connection Details</h2>
+                    
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-400 text-sm">Status</span>
+                            <div class="flex items-center gap-2">
+                                <div id="status-indicator" class="w-3 h-3 rounded-full bg-red-500"></div>
+                                <span id="status-text" class="text-sm font-medium text-red-400">Offline</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-xs text-gray-400 uppercase tracking-wider">Type this in ConnectBot:</label>
+                            <div class="flex items-center gap-2 bg-[#010409] border border-gray-800 rounded-md p-2">
+                                <code id="connection-string" class="text-blue-400 text-sm flex-1 opacity-50">server_offline</code>
+                                <button onclick="copyAddress()" class="p-1.5 hover:bg-gray-800 rounded-md text-gray-400 hover:text-white transition-colors" title="Copy Address">
+                                    <i data-lucide="copy" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4 pt-2">
+                            <div>
+                                <label class="text-xs text-gray-400">IP Address</label>
+                                <p id="ip-address" class="text-sm font-mono mt-1 text-gray-500">---.---.-.-</p>
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-400">Port</label>
+                                <p id="port-number" class="text-sm font-mono mt-1 text-gray-500">----</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Connected Devices Card -->
+                <div class="bg-[#161b22] border border-gray-800 rounded-xl p-5 shadow-lg flex flex-col h-[300px]">
+                    <div class="flex justify-between items-center mb-4 border-b border-gray-800 pb-2">
+                        <h2 class="text-lg font-semibold text-white">Active Clients</h2>
+                        <span id="client-count" class="bg-gray-800 text-xs px-2 py-1 rounded-full">0</span>
+                    </div>
+                    
+                    <div id="clients-list" class="flex-1 overflow-y-auto space-y-3">
+                        <!-- Empty State -->
+                        <div id="empty-clients" class="h-full flex flex-col items-center justify-center text-center text-gray-500 space-y-2">
+                            <i data-lucide="smartphone" class="w-8 h-8 opacity-50"></i>
+                            <p class="text-sm">No phones connected yet.<br>Start the server first.</p>
+                        </div>
+                        <!-- Client items will be injected here via JS -->
+                    </div>
+
+                    <!-- Simulation Action -->
+                    <div class="mt-4 pt-4 border-t border-gray-800">
+                        <button id="simulate-btn" disabled class="w-full bg-gray-800 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-gray-200 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                            <i data-lucide="smartphone-nfc" class="w-4 h-4"></i>
+                            Simulate Phone Connection
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Terminal -->
+            <div class="lg:col-span-2">
+                <div class="bg-[#010409] border border-gray-800 rounded-xl shadow-lg flex flex-col h-[650px] overflow-hidden">
+                    <div class="bg-[#161b22] px-4 py-2 border-b border-gray-800 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="terminal-square" class="w-4 h-4 text-gray-400"></i>
+                            <span class="text-sm font-medium text-gray-300">Host System Logs (bash)</span>
+                        </div>
+                        <!-- NEW AI AUDIT BUTTON -->
+                        <button id="ai-audit-btn" class="text-xs bg-blue-600/20 text-blue-400 hover:bg-blue-600/40 px-2 py-1 rounded flex items-center gap-1 transition-colors">
+                            <i data-lucide="shield-alert" class="w-3 h-3"></i> AI Audit
+                        </button>
+                    </div>
+                    
+                    <div id="terminal-output" class="flex-1 p-4 font-mono text-sm overflow-y-auto terminal-scroll space-y-1">
+                        <div class="text-gray-500">System initialization complete.</div>
+                        <div class="text-gray-500">Waiting for user to start SSH daemon...</div>
+                    </div>
+                    
+                    <div class="bg-[#0d1117] border-t border-gray-800 p-2 flex items-center gap-2 shrink-0">
+                        <span class="text-green-500 font-mono text-sm font-bold">$</span>
+                        <input type="text" id="terminal-input" disabled class="flex-1 bg-transparent text-gray-300 font-mono text-sm focus:outline-none disabled:opacity-50" placeholder="Start server to interact with AI sysadmin...">
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Initialize icons
+        lucide.createIcons();
+
+        // State
+        let isServerRunning = false;
+        let activeClients = 0;
+        const myIP = "192.168.1.14"; // Simulated Laptop IP
+        const myPort = "2222"; // Simulated Port
+
+        // DOM Elements
+        const toggleBtn = document.getElementById('toggle-server-btn');
+        const statusIndicator = document.getElementById('status-indicator');
+        const statusText = document.getElementById('status-text');
+        const connectionString = document.getElementById('connection-string');
+        const ipAddress = document.getElementById('ip-address');
+        const portNumber = document.getElementById('port-number');
+        const terminal = document.getElementById('terminal-output');
+        const simulateBtn = document.getElementById('simulate-btn');
+        const clientsList = document.getElementById('clients-list');
+        const emptyClients = document.getElementById('empty-clients');
+        const clientCount = document.getElementById('client-count');
+        const terminalInput = document.getElementById('terminal-input');
+
+        // Terminal Logging Function
+        function logToTerminal(message, type = 'info', id = null) {
+            const div = document.createElement('div');
+            if (id) div.id = id;
+            const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second:'2-digit' });
+            
+            let colorClass = 'text-gray-300';
+            if (type === 'success') colorClass = 'text-green-400';
+            if (type === 'error') colorClass = 'text-red-400';
+            if (type === 'warning') colorClass = 'text-yellow-400';
+            if (type === 'system') colorClass = 'text-blue-400';
+            if (type === 'user') colorClass = 'text-white font-bold';
+
+            div.innerHTML = `<span class="text-gray-600">[${timestamp}]</span> <span class="${colorClass} whitespace-pre-wrap"></span>`;
+            div.querySelector('span:last-child').textContent = message;
+            
+            terminal.appendChild(div);
+            
+            // Auto-scroll to bottom
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        let chatHistory = [];
+        const apiKey = ""; // Workspace will provide this automatically
+
+        terminalInput.addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter' && terminalInput.value.trim() !== '') {
+                const userInput = terminalInput.value.trim();
+                terminalInput.value = '';
+                logToTerminal(userInput, 'user');
+
+                chatHistory.push({ role: "user", parts: [{ text: userInput }] });
+                
+                const loadingId = 'loading-' + Date.now();
+                logToTerminal('AI Sysadmin is thinking...', 'system', loadingId);
+
+                try {
+                    const payload = {
+                        contents: chatHistory,
+                        systemInstruction: {
+                            parts: [{ text: "You are an AI sysadmin embedded in a Linux server terminal. The user is executing commands on your system. Respond to user commands as if you are the server executing them, or answer their questions about server management concisely. Keep responses brief and formatted like terminal output where appropriate." }]
+                        },
+                    };
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro:generateContent?key=${apiKey}`;
+                    
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    const result = await response.json();
+                    const candidate = result.candidates?.[0];
+
+                    document.getElementById(loadingId)?.remove();
+
+                    if (candidate && candidate.content?.parts?.[0]?.text) {
+                        const botResponse = candidate.content.parts[0].text;
+                        chatHistory.push({ role: "model", parts: [{ text: botResponse }] });
+                        logToTerminal(botResponse, 'info');
+                    } else {
+                        logToTerminal("Error: AI sysadmin is unresponsive.", 'error');
+                    }
+                } catch (error) {
+                    document.getElementById(loadingId)?.remove();
+                    logToTerminal("Connection error to AI sysadmin.", 'error');
+                }
+            }
+        });
+
+        // Toggle Server Button Click
+        toggleBtn.addEventListener('click', () => {
+            isServerRunning = !isServerRunning;
+            
+            if (isServerRunning) {
+                // START SERVER
+                toggleBtn.innerHTML = `<i data-lucide="square" class="w-4 h-4"></i> Stop Server`;
+                toggleBtn.classList.replace('bg-blue-600', 'bg-red-600');
+                toggleBtn.classList.replace('hover:bg-blue-700', 'hover:bg-red-700');
+                
+                statusIndicator.classList.replace('bg-red-500', 'bg-green-500');
+                statusIndicator.classList.add('pulse-green');
+                statusText.textContent = 'Online & Listening';
+                statusText.classList.replace('text-red-400', 'text-green-400');
+
+                connectionString.textContent = `root@${myIP}:${myPort}`;
+                connectionString.classList.remove('opacity-50');
+                ipAddress.textContent = myIP;
+                ipAddress.classList.replace('text-gray-500', 'text-gray-300');
+                portNumber.textContent = myPort;
+                portNumber.classList.replace('text-gray-500', 'text-gray-300');
+
+                simulateBtn.removeAttribute('disabled');
+                
+                // Enable Terminal Input
+                terminalInput.removeAttribute('disabled');
+                terminalInput.placeholder = "Type a command for the AI Sysadmin...";
+
+                logToTerminal('Starting SSH daemon...', 'system');
+                setTimeout(() => logToTerminal('Generating RSA host key...', 'info'), 400);
+                setTimeout(() => logToTerminal(`Server listening on ${myIP} port ${myPort}`, 'success'), 900);
+
+            } else {
+                // STOP SERVER
+                toggleBtn.innerHTML = `<i data-lucide="power" class="w-4 h-4"></i> Start Server`;
+                toggleBtn.classList.replace('bg-red-600', 'bg-blue-600');
+                toggleBtn.classList.replace('hover:bg-red-700', 'hover:bg-blue-700');
+                
+                statusIndicator.classList.replace('bg-green-500', 'bg-red-500');
+                statusIndicator.classList.remove('pulse-green');
+                statusText.textContent = 'Offline';
+                statusText.classList.replace('text-green-400', 'text-red-400');
+
+                connectionString.textContent = `server_offline`;
+                connectionString.classList.add('opacity-50');
+                ipAddress.textContent = '---.---.-.-';
+                ipAddress.classList.replace('text-gray-300', 'text-gray-500');
+                portNumber.textContent = '----';
+                portNumber.classList.replace('text-gray-300', 'text-gray-500');
+
+                simulateBtn.setAttribute('disabled', 'true');
+                
+                // Disable Terminal Input and clear history
+                terminalInput.setAttribute('disabled', 'true');
+                terminalInput.placeholder = "Start server to interact with AI sysadmin...";
+                chatHistory = []; 
+
+                // Disconnect all clients
+                clientsList.innerHTML = '';
+                clientsList.appendChild(emptyClients);
+                emptyClients.style.display = 'flex';
+                activeClients = 0;
+                clientCount.textContent = '0';
+
+                logToTerminal('Stopping SSH daemon...', 'warning');
+                setTimeout(() => logToTerminal('Server stopped. All connections dropped.', 'error'), 300);
+            }
+            lucide.createIcons();
+        });
+
+        // Copy Address Function
+        window.copyAddress = function() {
+            if(!isServerRunning) return;
+            const text = connectionString.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                logToTerminal('Connection string copied to clipboard.', 'info');
+                // Temporary visual feedback
+                const btn = document.querySelector('button[title="Copy Address"]');
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = `<i data-lucide="check" class="w-4 h-4 text-green-400"></i>`;
+                lucide.createIcons();
+                setTimeout(() => {
+                    btn.innerHTML = originalHtml;
+                    lucide.createIcons();
+                }, 2000);
+            });
+        };
+
+        // Simulate Incoming Connection
+        simulateBtn.addEventListener('click', () => {
+            simulateBtn.setAttribute('disabled', 'true');
+            logToTerminal('Incoming TCP connection from 192.168.1.45:51234...', 'warning');
+            
+            setTimeout(() => {
+                logToTerminal('Negotiating SSH-2.0-ConnectBot...', 'info');
+            }, 800);
+
+            setTimeout(() => {
+                logToTerminal('Accepted publickey for root from 192.168.1.45 port 51234 ssh2', 'success');
+                addClientUI('Android Phone (ConnectBot)', '192.168.1.45');
+                simulateBtn.removeAttribute('disabled');
+            }, 2000);
+        });
+
+        function addClientUI(deviceName, clientIp) {
+            emptyClients.style.display = 'none';
+            activeClients++;
+            clientCount.textContent = activeClients;
+
+            const clientDiv = document.createElement('div');
+            clientDiv.className = 'bg-[#0d1117] border border-gray-700 rounded-lg p-3 flex justify-between items-center animate-[fadeIn_0.5s_ease-out]';
+            clientDiv.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="bg-green-500/10 p-2 rounded-md">
+                        <i data-lucide="smartphone" class="w-5 h-5 text-green-400"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-white">${deviceName}</p>
+                        <p class="text-xs text-gray-400 font-mono">${clientIp}</p>
+                    </div>
+                </div>
+                <button class="text-red-400 hover:text-red-300 hover:bg-red-400/10 p-1.5 rounded transition-colors" title="Kick client" onclick="kickClient(this, '${clientIp}')">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            `;
+            clientsList.appendChild(clientDiv);
+            lucide.createIcons();
+        }
+
+        window.kickClient = function(btnElement, ip) {
+            const clientRow = btnElement.closest('div.bg-\\[\\#0d1117\\]');
+            clientRow.remove();
+            activeClients--;
+            clientCount.textContent = activeClients;
+            
+            if (activeClients === 0) {
+                emptyClients.style.display = 'flex';
+                clientsList.appendChild(emptyClients);
+            }
+            
+            logToTerminal(`Connection closed by server for ${ip}`, 'error');
+        }
+
+        // NEW AI AUDIT JAVASCRIPT
+        const aiAuditBtn = document.getElementById('ai-audit-btn');
+        aiAuditBtn.addEventListener('click', async () => {
+            logToTerminal('Initiating AI security audit of recent logs...', 'system');
+            
+            // Gather text from terminal
+            const logLines = Array.from(terminal.children)
+                .map(div => div.textContent)
+                .join('\n');
+
+            const loadingId = 'audit-loading-' + Date.now();
+            logToTerminal('Analyzing logs for threats...', 'system', loadingId);
+
+            try {
+                const payload = {
+                    contents: [{ role: "user", parts: [{ text: `Analyze these server logs and provide a 1-sentence security summary indicating if things look normal or suspicious. Be brief:\n\n${logLines}` }] }],
+                };
+                
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro:generateContent?key=${apiKey}`;
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                document.getElementById(loadingId)?.remove();
+
+                if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
+                    const summary = result.candidates[0].content.parts[0].text;
+                    logToTerminal(`[AI AUDIT] ${summary}`, 'warning');
+                } else {
+                    logToTerminal("Audit failed.", 'error');
+                }
+            } catch (error) {
+                document.getElementById(loadingId)?.remove();
+                logToTerminal("Connection error during audit.", 'error');
+            }
+        });
+
+        // Add tailwind custom animation for client row
+        tailwind.config = {
+            theme: {
+                extend: {
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
